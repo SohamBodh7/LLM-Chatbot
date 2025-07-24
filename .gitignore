@@ -1,0 +1,13 @@
+# .gitignore for a Python project
+
+# Ignore the secret key file
+secret_key.py
+
+# Ignore Python cache files
+__pycache__/
+
+# Ignore virtual environment folders
+chatbot_env/
+venv/
+env/
+.env
