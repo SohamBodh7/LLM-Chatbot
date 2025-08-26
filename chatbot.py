@@ -261,7 +261,7 @@ import os
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="College Info Chatbot",
+    page_title="MES IMCC Info Chatbot",
     page_icon="🎓",
     layout="wide"
 )
@@ -440,7 +440,7 @@ def user_page():
         st.session_state.role = None
         st.rerun()
 
-    st.title("📚 Document-Based LLM ChatBot")
+    st.title("👉 📘 IMCC Student Information Hub")
     st.write("Select a topic and ask a question. I will find the answer from the official documents.")
 
     try:
