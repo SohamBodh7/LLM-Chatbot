@@ -258,6 +258,7 @@ from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 import os
+import shutil
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -273,13 +274,10 @@ except (KeyError, FileNotFoundError):
     st.error("🚨 Groq API Key not found. Please add it to your Streamlit secrets.")
     st.stop()
 
-
-# --- Directory Setup ---
-# Create base directories if they don't exist
-if not os.path.exists("document_library"):
-    os.makedirs("document_library")
-if not os.path.exists("vector_stores"):
-    os.makedirs("vector_stores")
+def setup_directories():
+    """Create base directories for documents and vector stores if they don't exist."""
+    os.makedirs("document_library", exist_ok=True)
+    os.makedirs("vector_stores", exist_ok=True)
 
 # --- Caching for Resource-Intensive Functions ---
 @st.cache_resource
@@ -349,10 +347,16 @@ def admin_page():
     st.title("📄 Admin Document Management")
     st.write("Here you can create document categories and upload the relevant PDFs. After uploading, process the category to make it available to users.")
 
+    # Get all available categories to be used across the admin page
+    try:
+        categories = [d for d in os.listdir("document_library") if os.path.isdir(os.path.join("document_library", d))]
+    except FileNotFoundError:
+        categories = []
+
     st.markdown("---")
 
     # --- Step 1: Create a New Category ---
-    st.header("1. Create New Category")
+    st.header("1. Create a New Category")
     new_category = st.text_input("Enter new category name (e.g., 'College Admission', 'Sports Events')")
     if st.button("Create Category"):
         if new_category:
@@ -369,17 +373,18 @@ def admin_page():
     st.markdown("---")
 
     # --- Step 2: Upload Documents to a Category ---
-    st.header("2. Upload Documents")
-    try:
-        categories = [d for d in os.listdir("document_library") if os.path.isdir(os.path.join("document_library", d))]
-    except FileNotFoundError:
-        categories = []
-
+    st.header("2. Upload Documents to a Category")
     if not categories:
         st.info("No categories found. Please create a category first.")
     else:
         selected_category_for_upload = st.selectbox("Select Category to Upload Documents To", options=categories)
-        uploaded_files = st.file_uploader("Choose PDF files", type="pdf", accept_multiple_files=True)
+        # By using the selected category in the key, the file uploader will reset
+        # its state (clear the file list) whenever a new category is chosen.
+        uploaded_files = st.file_uploader(
+            "Choose PDF files",
+            type="pdf",
+            accept_multiple_files=True,
+            key=f"uploader_{selected_category_for_upload}")
 
         if st.button("Upload and Save Files"):
             if uploaded_files and selected_category_for_upload:
@@ -392,7 +397,7 @@ def admin_page():
     st.markdown("---")
 
     # --- Step 3: Process a Category into Vector Store ---
-    st.header("3. Process Category into Vector Store")
+    st.header("3. Process a Category into a Vector Store")
     st.warning("This step can be slow. It reads all PDFs in a category, splits them, and creates a searchable index. Only run this after you have finished uploading documents to a category.")
     
     if categories:
@@ -427,6 +432,31 @@ def admin_page():
 
                     except Exception as e:
                         st.error(f"An error occurred during processing: {e}")
+
+    st.markdown("---")
+
+    # --- Step 4: Delete a Category ---
+    st.header("4. Delete a Category")
+    st.error("⚠️ **DANGER ZONE:** Deleting a category is permanent and will remove all associated documents and the processed data index. This action cannot be undone.")
+
+    if categories:
+        selected_category_to_delete = st.selectbox("Select category to delete", options=[""] + categories, key="delete_select")
+        if selected_category_to_delete:
+            if st.button(f"Permanently Delete '{selected_category_to_delete}' Category"):
+                try:
+                    doc_path = os.path.join("document_library", selected_category_to_delete)
+                    vector_store_path = os.path.join("vector_stores", selected_category_to_delete)
+
+                    if os.path.exists(doc_path):
+                        shutil.rmtree(doc_path)
+                    if os.path.exists(vector_store_path):
+                        shutil.rmtree(vector_store_path)
+
+                    st.success(f"Category '{selected_category_to_delete}' and all its data have been deleted.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"An error occurred while deleting the category: {e}")
+
 
 # USER PAGE 
 
@@ -550,6 +580,9 @@ def login_page():
 
 def main():
     """Main function to run the Streamlit app."""
+    # Ensure required directories exist
+    setup_directories()
+
     # Set Groq API Key as an environment variable for LangChain
     os.environ["GROQ_API_KEY"] = grok_api_key
 
